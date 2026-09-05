@@ -1,68 +1,178 @@
-export const PRODUCTS = [
-  "web",
-  "mobile",
-  "api",
-  "realtime",
-  "pipeline",
-] as const;
-export type Product = (typeof PRODUCTS)[number];
-
-export const SCALES = ["startup", "growth", "hyperscale"] as const;
-export type Scale = (typeof SCALES)[number];
-
-export const TEAMS = ["solo", "small", "experienced"] as const;
-export type TeamExperience = (typeof TEAMS)[number];
-
-export const BUDGETS = ["free", "low", "enterprise"] as const;
-export type Budget = (typeof BUDGETS)[number];
-
-export const REALTIME = ["yes", "no"] as const;
-export type RealTimeNeed = (typeof REALTIME)[number];
-
-export const DATA_TYPES = [
-  "relational",
-  "document",
-  "both",
-  "analytics",
-] as const;
-export type DataType = (typeof DATA_TYPES)[number];
-
-export const DEPLOYMENTS = ["serverless", "self-hosted", "managed"] as const;
-export type Deployment = (typeof DEPLOYMENTS)[number];
-
-/** 0 = poor fit, 1 = possible, 2 = good, 3 = excellent */
-export type Affinity = 0 | 1 | 2 | 3;
-
-export const PROFILE_DIMENSIONS = [
-  "product",
+export const SECTION_IDS = [
+  "who",
+  "what",
+  "data",
   "scale",
-  "teamExperience",
-  "budget",
-  "realTime",
-  "dataType",
-  "deploymentPreference",
+  "constraints",
+  "integrations",
 ] as const;
+export type SectionId = (typeof SECTION_IDS)[number];
 
-export type ProfileDimension = (typeof PROFILE_DIMENSIONS)[number];
+export const SECTION_LABELS: Record<SectionId, string> = {
+  who: "Who is building",
+  what: "What you are building",
+  data: "Data",
+  scale: "Scale and traffic",
+  constraints: "Constraints",
+  integrations: "Integrations",
+};
 
-export interface UserProfile {
-  product: Product;
-  scale: Scale;
-  teamExperience: TeamExperience;
-  budget: Budget;
-  realTime: RealTimeNeed;
-  dataType: DataType;
-  deploymentPreference: Deployment;
+export const LAYERS = [
+  "webFrontend",
+  "mobileFrontend",
+  "desktopFrontend",
+  "backend",
+  "database",
+  "hosting",
+  "cache",
+  "cdn",
+  "queue",
+  "realtimeTransport",
+  "search",
+  "vector",
+  "warehouse",
+  "auth",
+  "storage",
+  "payments",
+  "messaging",
+  "mobileDelivery",
+  "observability",
+] as const;
+export type Layer = (typeof LAYERS)[number];
+
+export const LAYER_LABELS: Record<Layer, string> = {
+  webFrontend: "Web frontend",
+  mobileFrontend: "Mobile",
+  desktopFrontend: "Desktop",
+  backend: "Backend",
+  database: "Database",
+  hosting: "Deployment",
+  cache: "Cache",
+  cdn: "CDN",
+  queue: "Jobs and queues",
+  realtimeTransport: "Realtime",
+  search: "Search",
+  vector: "Vector search",
+  warehouse: "Analytics warehouse",
+  auth: "Authentication",
+  storage: "File storage",
+  payments: "Payments",
+  messaging: "Messaging",
+  mobileDelivery: "App store delivery",
+  observability: "Observability",
+};
+
+export const ASSEMBLY_ORDER: Layer[] = [
+  "webFrontend",
+  "mobileFrontend",
+  "desktopFrontend",
+  "backend",
+  "database",
+  "hosting",
+  "cache",
+  "cdn",
+  "queue",
+  "realtimeTransport",
+  "search",
+  "vector",
+  "warehouse",
+  "auth",
+  "storage",
+  "payments",
+  "messaging",
+  "mobileDelivery",
+  "observability",
+];
+
+/** questionId → optionId (multi-select joined with "+") */
+export type Answers = Record<string, string>;
+
+export type Ternary = true | false | "unknown";
+
+export type Condition =
+  | { questionId: string; anyOf: string[] }
+  | {
+      field: string;
+      is?: string;
+      anyOf?: string[];
+      noneOf?: string[];
+      includes?: string;
+    }
+  | { all: Condition[] }
+  | { any: Condition[] }
+  | { not: Condition };
+
+export interface QuestionOption {
+  id: string;
+  label: string;
+  description?: string;
+  /** Exclusive "none / no preference" for multi-select */
+  exclusive?: boolean;
 }
 
-export interface StackProfile {
-  product: Record<Product, Affinity>;
-  scale: Record<Scale, Affinity>;
-  teamExperience: Record<TeamExperience, Affinity>;
-  budget: Record<Budget, Affinity>;
-  realTime: Record<RealTimeNeed, Affinity>;
-  dataType: Record<DataType, Affinity>;
-  deploymentPreference: Record<Deployment, Affinity>;
+export interface Question {
+  id: string;
+  section: SectionId;
+  kind: "single" | "multi";
+  prompt: string;
+  promptTechnical?: string;
+  helper?: string;
+  helperTechnical?: string;
+  options: QuestionOption[];
+  showWhen?: Condition;
+  /** Multi only. Default 1; 0 allows empty. */
+  minSelections?: number;
+}
+
+export interface QuestionWalk {
+  visible: Question[];
+  pending: Question | null;
+  complete: boolean;
+  resolved: Answers;
+}
+
+export interface Profile {
+  role: string;
+  team: string;
+  languages: string[];
+  product: string;
+  platforms: string[];
+  nativeDepth: string;
+  webKind: string;
+  seo: string;
+  realtime: string;
+  offline: string;
+  media: string;
+  ai: string;
+  dataShape: string;
+  dataVolume: string;
+  consistency: string;
+  search: string;
+  analytics: string;
+  scaleYear1: string;
+  scaleAmbition: string;
+  trafficPattern: string;
+  geo: string;
+  readWrite: string;
+  budget: string;
+  timeline: string;
+  compliance: string[];
+  ops: string;
+  deployPreference: string;
+  existingCloud: string[];
+  lockIn: string;
+  auth: string;
+  payments: string;
+  integrations: string[];
+  observability: string[];
+}
+
+export type RuleScore = -3 | -2 | -1 | 1 | 2 | 3 | "exclude";
+
+export interface FitRule {
+  when: Condition;
+  score: RuleScore;
+  reason: string;
 }
 
 export interface ScalingStory {
@@ -71,79 +181,85 @@ export interface ScalingStory {
   to1b: string;
 }
 
-export interface Stack {
+export interface Component {
   id: string;
+  layer: Layer;
   name: string;
   summary: string;
-  profile: StackProfile;
+  plainSummary: string;
+  rules: FitRule[];
+  tags?: string[];
+  requires?: string[];
+  conflicts?: string[];
+  synergy?: Array<{ with: string; bonus: number; reason: string }>;
+  scaling: ScalingStory;
   pros: string[];
   cons: string[];
-  scalingStory: ScalingStory;
+  meta: {
+    hiringPool: 1 | 2 | 3;
+    maturity: 1 | 2 | 3;
+    openSource: boolean;
+    lastReviewed: string;
+    sources: string[];
+  };
 }
 
-/** questionId → optionId */
-export type Answers = Record<string, string>;
+export interface FiredReason {
+  reason: string;
+  score: RuleScore;
+}
 
-export type ProfileMapping =
-  | { dimension: "product"; value: Product }
-  | { dimension: "scale"; value: Scale }
-  | { dimension: "teamExperience"; value: TeamExperience }
-  | { dimension: "budget"; value: Budget }
-  | { dimension: "realTime"; value: RealTimeNeed }
-  | { dimension: "dataType"; value: DataType }
-  | { dimension: "deploymentPreference"; value: Deployment };
+export interface ScoredComponent {
+  component: Component;
+  excluded: boolean;
+  rawScore: number;
+  normalized: number;
+  reasons: FiredReason[];
+}
 
-export interface QuestionOption {
+export interface ChosenLayer {
+  layer: Layer;
+  chosen: ScoredComponent;
+  alternatives: ScoredComponent[];
+}
+
+export interface StackPreset {
   id: string;
-  label: string;
-  description?: string;
-  mapsTo: ProfileMapping;
-  /** Override the question's default next id */
-  next?: string | null;
+  name: string;
+  components: string[];
+  narrative: string;
+  plainNarrative: string;
+  scaling: ScalingStory;
 }
 
-export interface SkipRule {
-  questionId: string;
-  optionIds: string[];
-  implicitAnswer: string;
-}
-
-export interface Question {
-  id: string;
-  prompt: string;
-  helper?: string;
-  options: QuestionOption[];
-  /** Default next question id, or null to finish */
-  next: string | null;
-  skipWhen?: SkipRule[];
-}
-
-export interface MatchReason {
-  dimension: ProfileDimension;
-  questionId: string;
-  optionId: string;
-  optionLabel: string;
-  affinity: Affinity;
-  detail: string;
-}
-
-export interface ScoredStack {
-  stack: Stack;
+export interface AssembledStack {
+  title: string;
+  summary: string;
+  plainSummary: string;
   score: number;
-  reasons: MatchReason[];
+  layers: ChosenLayer[];
+  componentIds: string[];
+  scaling: ScalingStory;
+  presetId?: string;
+  perspective?: string;
 }
 
 export interface RecommendationResult {
-  winner: ScoredStack;
-  runnersUp: ScoredStack[];
-  ranked: ScoredStack[];
-  profile: UserProfile;
+  bestOverall: AssembledStack;
+  alternatives: AssembledStack[];
+  layers: ChosenLayer[];
+  profile: Profile;
   answers: Answers;
 }
 
-export interface QuestionWalk {
-  visible: Question[];
-  pending: Question | null;
-  complete: boolean;
-  resolved: Answers;
+export interface WizardProgress {
+  step: number;
+  total: number;
+  answered: number;
+  ratio: number;
+  section: SectionId | null;
+  sectionIndex: number;
+  sectionTotal: number;
+  sectionStep: number;
+  sectionCount: number;
 }

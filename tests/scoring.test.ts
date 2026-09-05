@@ -1,315 +1,543 @@
 import { describe, expect, test } from "vitest";
+import { COMPONENTS, COMPONENTS_BY_ID } from "@/lib/catalog";
 import {
-  getWizardProgress,
-  QUESTIONS,
-  walkQuestionTree,
-} from "@/lib/questions";
-import {
-  DIMENSION_WEIGHTS,
   decodeAnswers,
   encodeAnswers,
   IncompleteAnswersError,
   recommend,
   recommendFromEncoded,
-  scoreStack,
-  weightTotal,
-} from "@/lib/scoring";
-import { STACKS } from "@/lib/stacks";
+} from "@/lib/engine";
+import { PRESETS } from "@/lib/presets";
 import {
-  type Answers,
-  BUDGETS,
-  DATA_TYPES,
-  DEPLOYMENTS,
-  PRODUCTS,
-  PROFILE_DIMENSIONS,
-  REALTIME,
-  SCALES,
-  type Stack,
-  TEAMS,
-} from "@/lib/types";
+  getWizardProgress,
+  QUESTIONS,
+  QUESTIONS_BY_ID,
+  walkQuestionTree,
+} from "@/lib/questions";
+import type { Answers } from "@/lib/types";
 
-const soloWebFree: Answers = {
-  product: "web",
-  scale: "startup",
-  team: "solo",
-  budget: "free",
-  realtime: "no",
-  data: "relational",
-  deploy: "serverless",
-};
-
-const mobileRealtimeFree: Answers = {
-  product: "mobile",
-  scale: "startup",
-  team: "solo",
-  budget: "free",
-  realtime: "yes",
-  data: "document",
-  deploy: "serverless",
-};
-
-const mobileRelational: Answers = {
-  product: "mobile",
-  scale: "startup",
-  team: "small",
-  budget: "free",
-  realtime: "yes",
-  data: "relational",
-  deploy: "serverless",
-};
-
-const enterpriseApiHyperscale: Answers = {
-  product: "api",
-  scale: "hyperscale",
-  team: "experienced",
-  budget: "enterprise",
-  realtime: "no",
-  data: "relational",
-  deploy: "self-hosted",
-};
-
-const analyticsPipeline: Answers = {
-  product: "pipeline",
-  scale: "growth",
-  team: "experienced",
-  budget: "enterprise",
-  realtime: "no",
-  data: "analytics",
-  deploy: "managed",
-};
-
-const realtimeCollaboration: Answers = {
-  product: "realtime",
-  scale: "growth",
-  team: "experienced",
-  budget: "low",
-  data: "relational",
-  deploy: "managed",
-};
-
-const heavyOpsStacks = [
-  "go-redis-kubernetes",
-  "spring-postgres-k8s",
-  "kafka-flink-k8s",
-  "airflow-dbt-bigquery",
-];
-
-function idsOf(result: ReturnType<typeof recommend>) {
-  return [result.winner, ...result.runnersUp].map((item) => item.stack.id);
+function idsOf(result: ReturnType<typeof recommend>): string[] {
+  return result.bestOverall.componentIds;
 }
 
+function hasAny(ids: string[], wanted: string[]): boolean {
+  return wanted.some((id) => ids.includes(id));
+}
+
+const founderWebsite: Answers = {
+  role: "founder",
+  team: "solo-learning",
+  product: "website",
+  webKind: "public",
+  seo: "must",
+  realtime: "none",
+  media: "none",
+  ai: "none",
+  dataShape: "unsure",
+  dataVolume: "small",
+  search: "none",
+  analytics: "none",
+  scaleYear1: "under-1k",
+  scaleAmbition: "local",
+  trafficPattern: "steady",
+  geo: "one-region",
+  budget: "zero",
+  timeline: "days",
+  compliance: "none",
+  ops: "none",
+  deployPreference: "serverless",
+  existingCloud: "none",
+  lockIn: "unsure",
+  auth: "none",
+  payments: "none",
+  integrations: "none",
+};
+
+const soloDevSaas: Answers = {
+  role: "developer",
+  team: "solo-experienced",
+  languages: "typescript",
+  product: "webapp",
+  webKind: "logged-in",
+  seo: "nice",
+  realtime: "none",
+  media: "none",
+  ai: "none",
+  dataShape: "relational",
+  dataVolume: "growing",
+  consistency: "strong",
+  search: "filter",
+  analytics: "simple",
+  scaleYear1: "1k-10k",
+  scaleAmbition: "national",
+  trafficPattern: "steady",
+  geo: "one-region",
+  readWrite: "balanced",
+  budget: "under-50",
+  timeline: "1-3-months",
+  compliance: "none",
+  ops: "none",
+  deployPreference: "serverless",
+  existingCloud: "none",
+  lockIn: "unsure",
+  auth: "email",
+  payments: "subscriptions",
+  integrations: "email",
+  observability: "errors",
+};
+
+const webMobileRelational: Answers = {
+  ...soloDevSaas,
+  role: "lead",
+  team: "small",
+  product: "web-mobile",
+  platforms: "ios+android+browser",
+  nativeDepth: "standard",
+  offline: "online",
+  dataShape: "relational",
+  lockIn: "ok",
+  deployPreference: "serverless",
+};
+
+function without(answers: Answers, keys: string[]): Answers {
+  const next = { ...answers };
+  for (const key of keys) {
+    delete next[key];
+  }
+  return next;
+}
+
+const iosNative: Answers = without(
+  {
+    ...soloDevSaas,
+    languages: "swift",
+    product: "mobile",
+    platforms: "ios",
+    nativeDepth: "heavy",
+    offline: "online",
+  },
+  ["webKind", "seo"],
+);
+
+const dotnetAzure: Answers = {
+  ...soloDevSaas,
+  role: "lead",
+  team: "large",
+  languages: "csharp",
+  product: "webapp",
+  budget: "enterprise",
+  ops: "light",
+  deployPreference: "paas",
+  existingCloud: "azure+microsoft",
+  observability: "metrics+errors",
+};
+
+const hyperscaleApi: Answers = {
+  role: "lead",
+  team: "large",
+  languages: "go+java",
+  product: "api",
+  realtime: "none",
+  media: "none",
+  ai: "none",
+  dataShape: "relational",
+  dataVolume: "tb",
+  consistency: "strong",
+  search: "none",
+  analytics: "none",
+  scaleYear1: "1m-plus",
+  scaleAmbition: "billion",
+  trafficPattern: "steady",
+  geo: "worldwide",
+  readWrite: "balanced",
+  budget: "enterprise",
+  timeline: "6-months",
+  compliance: "none",
+  ops: "dedicated",
+  deployPreference: "self-hosted",
+  existingCloud: "none",
+  lockIn: "portable",
+  auth: "none",
+  payments: "none",
+  integrations: "jobs",
+  observability: "metrics",
+};
+
+const biPlatform: Answers = {
+  role: "lead",
+  team: "large",
+  languages: "python",
+  product: "analytics",
+  realtime: "none",
+  media: "none",
+  ai: "none",
+  dataShape: "timeseries",
+  dataVolume: "tb",
+  consistency: "eventual",
+  search: "none",
+  analytics: "bi",
+  scaleYear1: "100k-1m",
+  scaleAmbition: "global",
+  trafficPattern: "batch",
+  geo: "multi-region",
+  readWrite: "read-heavy",
+  budget: "enterprise",
+  timeline: "6-months",
+  compliance: "none",
+  ops: "dedicated",
+  deployPreference: "cloud",
+  existingCloud: "gcp",
+  lockIn: "unsure",
+  auth: "none",
+  payments: "none",
+  integrations: "jobs",
+  observability: "metrics",
+};
+
+const collabEditor: Answers = {
+  ...soloDevSaas,
+  languages: "elixir+typescript",
+  product: "realtime",
+  webKind: "editor",
+  seo: "none",
+  realtime: "collab",
+  offline: "online",
+  ops: "light",
+  deployPreference: "paas",
+  budget: "50-500",
+};
+
+const multiplayer: Answers = {
+  ...soloDevSaas,
+  languages: "go",
+  product: "webapp",
+  realtime: "multiplayer",
+  team: "large",
+  ops: "dedicated",
+  deployPreference: "cloud",
+  budget: "enterprise",
+  scaleAmbition: "global",
+};
+
+const hipaaApp: Answers = {
+  ...soloDevSaas,
+  compliance: "hipaa",
+  lockIn: "portable",
+  deployPreference: "cloud",
+  budget: "500-5k",
+  ops: "light",
+};
+
 describe("catalog integrity", () => {
-  test("weights sum to 100", () => {
-    expect(weightTotal()).toBe(100);
-    expect(Object.keys(DIMENSION_WEIGHTS)).toHaveLength(
-      PROFILE_DIMENSIONS.length,
-    );
-  });
-
-  test("ships 15–20 curated stacks", () => {
-    expect(STACKS.length).toBeGreaterThanOrEqual(15);
-    expect(STACKS.length).toBeLessThanOrEqual(20);
-  });
-
-  test("every stack has a complete affinity profile and copy", () => {
-    const dimensions: Array<{
-      key: keyof Stack["profile"];
-      values: readonly string[];
-    }> = [
-      { key: "product", values: PRODUCTS },
-      { key: "scale", values: SCALES },
-      { key: "teamExperience", values: TEAMS },
-      { key: "budget", values: BUDGETS },
-      { key: "realTime", values: REALTIME },
-      { key: "dataType", values: DATA_TYPES },
-      { key: "deploymentPreference", values: DEPLOYMENTS },
-    ];
-
+  test("unique component ids and complete copy", () => {
     const ids = new Set<string>();
-    for (const stack of STACKS) {
-      expect(stack.id).toBeTruthy();
-      expect(ids.has(stack.id)).toBe(false);
-      ids.add(stack.id);
-      expect(stack.name).toBeTruthy();
-      expect(stack.summary).toBeTruthy();
-      expect(stack.pros.length).toBeGreaterThan(0);
-      expect(stack.cons.length).toBeGreaterThan(0);
-      expect(stack.scalingStory.to10k).toBeTruthy();
-      expect(stack.scalingStory.to1m).toBeTruthy();
-      expect(stack.scalingStory.to1b).toBeTruthy();
-
-      for (const { key, values } of dimensions) {
-        for (const value of values) {
-          const affinity = stack.profile[key][value as never];
-          expect(affinity).toBeGreaterThanOrEqual(0);
-          expect(affinity).toBeLessThanOrEqual(3);
-        }
-      }
+    for (const component of COMPONENTS) {
+      expect(component.id).toBeTruthy();
+      expect(ids.has(component.id)).toBe(false);
+      ids.add(component.id);
+      expect(component.plainSummary.length).toBeGreaterThan(10);
+      expect(component.summary.length).toBeGreaterThan(10);
+      expect(component.rules.length).toBeGreaterThanOrEqual(3);
+      expect(component.scaling.to10k).toBeTruthy();
+      expect(component.scaling.to1m).toBeTruthy();
+      expect(component.scaling.to1b).toBeTruthy();
+      expect(component.meta.lastReviewed).toBeTruthy();
+      expect(component.meta.sources.length).toBeGreaterThanOrEqual(1);
+      expect(component.pros.length).toBeGreaterThan(0);
+      expect(component.cons.length).toBeGreaterThan(0);
     }
   });
 
-  test("every question option maps onto a profile dimension", () => {
+  test("requires, conflicts, synergy, and presets resolve", () => {
+    for (const component of COMPONENTS) {
+      for (const token of [
+        ...(component.requires ?? []),
+        ...(component.conflicts ?? []),
+        ...(component.synergy ?? []).map((item) => item.with),
+      ]) {
+        if (token.startsWith("tag:")) {
+          continue;
+        }
+        expect(COMPONENTS_BY_ID[token], token).toBeTruthy();
+      }
+    }
+    for (const preset of PRESETS) {
+      for (const id of preset.components) {
+        expect(COMPONENTS_BY_ID[id], `${preset.id}:${id}`).toBeTruthy();
+      }
+    }
+  });
+});
+
+describe("question integrity", () => {
+  test("option ids are unique per question and showWhen points at real questions", () => {
     for (const question of QUESTIONS) {
       expect(question.options.length).toBeGreaterThan(1);
+      const ids = new Set<string>();
       for (const option of question.options) {
-        expect(option.mapsTo.dimension).toBeTruthy();
-        expect(option.mapsTo.value).toBe(option.id);
+        expect(ids.has(option.id)).toBe(false);
+        ids.add(option.id);
       }
     }
+  });
+
+  test("every question is reachable and no path exceeds 35 questions", () => {
+    expect(QUESTIONS.length).toBeGreaterThan(20);
+    expect(QUESTIONS.length).toBeLessThanOrEqual(35);
+    for (const question of QUESTIONS) {
+      expect(QUESTIONS_BY_ID[question.id]).toBe(question);
+    }
+  });
+
+  test("progress starts at question 1 with a live total", () => {
+    const progress = getWizardProgress({});
+    expect(progress.step).toBe(1);
+    expect(progress.total).toBeGreaterThan(10);
   });
 });
 
 describe("recommend()", () => {
-  test("returns a winner and two unique runners-up", () => {
-    const result = recommend(soloWebFree);
-    expect(result.runnersUp).toHaveLength(2);
-    const ids = idsOf(result);
-    expect(new Set(ids).size).toBe(3);
-    expect(result.winner.score).toBeGreaterThanOrEqual(
-      result.runnersUp[0].score,
-    );
-    expect(result.runnersUp[0].score).toBeGreaterThanOrEqual(
-      result.runnersUp[1].score,
-    );
-  });
-
-  test("is deterministic", () => {
-    const first = recommend(soloWebFree);
-    const second = recommend(soloWebFree);
-    expect(idsOf(first)).toEqual(idsOf(second));
-    expect(first.winner.score).toBe(second.winner.score);
-  });
-
-  test("solo beginner web + free serverless → lightweight TS/Postgres, not K8s", () => {
-    const result = recommend(soloWebFree);
-    expect(result.winner.stack.id).toBe("nextjs-postgres-vercel");
-    expect(result.winner.score).toBe(100);
-    for (const id of idsOf(result)) {
-      expect(heavyOpsStacks).not.toContain(id);
+  test("persona answers complete the tree", () => {
+    for (const answers of [
+      founderWebsite,
+      soloDevSaas,
+      webMobileRelational,
+      iosNative,
+      dotnetAzure,
+      hyperscaleApi,
+      biPlatform,
+      collabEditor,
+      multiplayer,
+      hipaaApp,
+    ]) {
+      const walk = walkQuestionTree(answers);
+      expect(walk.complete, JSON.stringify(walk.pending)).toBe(true);
     }
   });
 
-  test("mobile + document + realtime + free → Firebase + Flutter", () => {
-    const result = recommend(mobileRealtimeFree);
-    expect(result.winner.stack.id).toBe("firebase-flutter");
-    expect(result.winner.score).toBe(100);
+  test("solo non-technical website on $0 → Astro or Next.js + Vercel", () => {
+    const result = recommend(founderWebsite);
+    expect(hasAny(idsOf(result), ["astro", "nextjs"])).toBe(true);
+    expect(idsOf(result)).toContain("vercel");
+    expect(idsOf(result)).not.toContain("kubernetes");
+    expect(idsOf(result)).not.toContain("supabase");
+    expect(idsOf(result)).not.toContain("firebase");
   });
 
-  test("mobile + relational SQL prefers React Native + Supabase over Firebase", () => {
-    const result = recommend(mobileRelational);
-    expect(result.winner.stack.id).toBe("react-native-supabase");
-    expect(idsOf(result)).not.toContain("nextjs-postgres-vercel");
+  test("solo dev SaaS → Next.js + Postgres + Vercel", () => {
+    const result = recommend(soloDevSaas);
+    expect(idsOf(result)).toContain("nextjs");
+    expect(hasAny(idsOf(result), ["postgres", "supabase"])).toBe(true);
+    expect(hasAny(idsOf(result), ["vercel", "netlify"])).toBe(true);
+    expect(idsOf(result)).not.toContain("kubernetes");
   });
 
-  test("experienced team, hyperscale API, enterprise, self-hosted → Go or Spring", () => {
-    const result = recommend(enterpriseApiHyperscale);
-    expect(["go-redis-kubernetes", "spring-postgres-k8s"]).toContain(
-      result.winner.stack.id,
-    );
-    expect(idsOf(result)).not.toContain("firebase-flutter");
-    expect(idsOf(result)).not.toContain("nextjs-postgres-vercel");
+  test("small team web+mobile relational prefers Expo and SQL, not a web-only stack as mobile", () => {
+    const result = recommend(webMobileRelational);
+    expect(hasAny(idsOf(result), ["expo", "flutter"])).toBe(true);
+    expect(hasAny(idsOf(result), ["postgres", "supabase"])).toBe(true);
+    expect(idsOf(result)).not.toContain("kafka");
   });
 
-  test("analytics pipeline on managed cloud → Airflow + dbt + BigQuery", () => {
-    const result = recommend(analyticsPipeline);
-    expect(result.winner.stack.id).toBe("airflow-dbt-bigquery");
-    expect(idsOf(result)).toContain("kafka-flink-k8s");
+  test("iOS-only heavy device features → SwiftUI", () => {
+    const result = recommend(iosNative);
+    expect(idsOf(result)).toContain("swiftui");
+    expect(idsOf(result)).not.toContain("capacitor");
   });
 
-  test("realtime product skips the realtime question and still recommends Phoenix", () => {
-    const walk = walkQuestionTree(realtimeCollaboration);
-    expect(walk.complete).toBe(true);
-    expect(walk.resolved.realtime).toBe("yes");
-    expect(walk.visible.map((question) => question.id)).not.toContain(
-      "realtime",
-    );
-
-    const result = recommend(realtimeCollaboration);
-    expect(result.winner.stack.id).toBe("phoenix-liveview-fly");
-    expect(result.answers.realtime).toBe("yes");
+  test("enterprise .NET shop on Azure → ASP.NET + Azure SQL", () => {
+    const result = recommend(dotnetAzure);
+    expect(idsOf(result)).toContain("aspnet");
+    expect(hasAny(idsOf(result), ["azure-sql", "azure-app"])).toBe(true);
+    expect(idsOf(result)).not.toContain("firebase");
   });
 
-  test("does not surface product-affinity-0 stacks in the top 3", () => {
-    const result = recommend(soloWebFree);
-    for (const item of [result.winner, ...result.runnersUp]) {
-      expect(item.stack.profile.product.web).toBeGreaterThan(0);
-    }
-    expect(idsOf(result)).not.toContain("kafka-flink-k8s");
-    expect(idsOf(result)).not.toContain("airflow-dbt-bigquery");
+  test("hyperscale API experienced self-hosted → Go or Spring + Kubernetes + SQL + Redis", () => {
+    const result = recommend(hyperscaleApi);
+    expect(hasAny(idsOf(result), ["go", "spring"])).toBe(true);
+    expect(hasAny(idsOf(result), ["kubernetes", "aws-eks"])).toBe(true);
+    expect(hasAny(idsOf(result), ["postgres", "cockroach"])).toBe(true);
+    expect(idsOf(result)).toContain("redis");
+    expect(idsOf(result)).not.toContain("firebase");
+    expect(idsOf(result)).not.toContain("pocketbase");
   });
 
-  test("reasons only cite dimensions with affinity ≥ 2 and use the user's labels", () => {
-    const result = recommend(soloWebFree);
-    expect(result.winner.reasons.length).toBeGreaterThan(0);
-    for (const reason of result.winner.reasons) {
-      expect(reason.affinity).toBeGreaterThanOrEqual(2);
-      expect(reason.detail).toContain(result.winner.stack.name);
-      expect(reason.optionLabel).toBeTruthy();
-    }
+  test("BI platform → BigQuery or Snowflake + dbt + Dagster/Airflow", () => {
+    const result = recommend(biPlatform);
+    expect(hasAny(idsOf(result), ["bigquery", "snowflake"])).toBe(true);
+    expect(hasAny(idsOf(result), ["dbt", "dagster"])).toBe(true);
+    expect(idsOf(result)).not.toContain("pocketbase");
+  });
+
+  test("collaborative editor → Phoenix Channels or Liveblocks", () => {
+    const result = recommend(collabEditor);
     expect(
-      result.winner.reasons.some((reason) => reason.optionLabel === "Web app"),
+      hasAny(idsOf(result), [
+        "phoenix-channels",
+        "liveblocks",
+        "phoenix-liveview",
+      ]),
     ).toBe(true);
   });
 
+  test("multiplayer never recommends serverless-only hosting", () => {
+    const result = recommend(multiplayer);
+    expect(idsOf(result)).not.toContain("vercel");
+    expect(idsOf(result)).not.toContain("aws-lambda");
+    expect(
+      hasAny(idsOf(result), ["socketio", "phoenix-channels", "livekit"]),
+    ).toBe(true);
+  });
+
+  test("HIPAA excludes hobby BaaS", () => {
+    const result = recommend(hipaaApp);
+    expect(idsOf(result)).not.toContain("firebase");
+    expect(idsOf(result)).not.toContain("pocketbase");
+    expect(idsOf(result)).not.toContain("convex");
+  });
+
+  test("is deterministic and alternatives differ from best overall", () => {
+    const first = recommend(soloDevSaas);
+    const second = recommend(soloDevSaas);
+    expect(idsOf(first)).toEqual(idsOf(second));
+    expect(first.bestOverall.score).toBe(second.bestOverall.score);
+    for (const alt of first.alternatives) {
+      expect([...alt.componentIds].sort().join(",")).not.toBe(
+        [...first.bestOverall.componentIds].sort().join(","),
+      );
+    }
+  });
+
   test("throws on incomplete answers", () => {
-    expect(() => recommend({ product: "web" })).toThrow(IncompleteAnswersError);
+    expect(() => recommend({ role: "founder" })).toThrow(
+      IncompleteAnswersError,
+    );
   });
 
-  test("throws on an unknown option", () => {
-    expect(() =>
-      recommend({ ...soloWebFree, product: "mainframe" }),
-    ).toThrowError(/Unknown option/);
-  });
-});
-
-describe("scoreStack()", () => {
-  test("perfect affinity totals 100", () => {
-    const result = recommend(soloWebFree);
-    const scored = scoreStack(result.winner.stack, result.profile);
-    expect(scored.score).toBe(100);
-  });
-});
-
-describe("getWizardProgress()", () => {
-  test("starts at question 1 of 7", () => {
-    const progress = getWizardProgress({});
-    expect(progress.step).toBe(1);
-    expect(progress.total).toBe(7);
-    expect(progress.ratio).toBe(0);
+  test("python internal tool prefers Django, not Kubernetes", () => {
+    const result = recommend(
+      without(
+        {
+          ...soloDevSaas,
+          languages: "python",
+          product: "internal",
+          webKind: "logged-in",
+          deployPreference: "paas",
+          ops: "light",
+        },
+        ["seo"],
+      ),
+    );
+    expect(idsOf(result)).toContain("django");
+    expect(idsOf(result)).not.toContain("kubernetes");
   });
 
-  test("realtime product shortens the path to 6 questions", () => {
-    const progress = getWizardProgress({ product: "realtime" });
-    expect(progress.total).toBe(6);
-    expect(progress.step).toBe(2);
+  test("online store includes Stripe and not IAP-only billing", () => {
+    const result = recommend({
+      ...soloDevSaas,
+      product: "store",
+      webKind: "both",
+      seo: "must",
+      payments: "once",
+    });
+    expect(idsOf(result)).toContain("stripe");
+    expect(idsOf(result)).not.toContain("revenuecat");
   });
-});
 
-describe("recommendFromEncoded()", () => {
-  test("returns a recommendation from a share string", () => {
-    const result = recommendFromEncoded(encodeAnswers(soloWebFree));
-    expect(result?.winner.stack.id).toBe("nextjs-postgres-vercel");
+  test("RAG product includes a vector store", () => {
+    const result = recommend({
+      ...soloDevSaas,
+      product: "ai",
+      ai: "rag",
+      webKind: "logged-in",
+    });
+    expect(hasAny(idsOf(result), ["pgvector", "qdrant", "pinecone"])).toBe(
+      true,
+    );
   });
 
-  test("returns null for empty or incomplete payloads", () => {
-    expect(recommendFromEncoded(undefined)).toBeNull();
-    expect(recommendFromEncoded("product:web")).toBeNull();
+  test("desktop TypeScript product prefers Electron or Tauri", () => {
+    const result = recommend(
+      without(
+        {
+          ...soloDevSaas,
+          product: "desktop",
+          platforms: "windows+macos",
+          nativeDepth: "standard",
+          offline: "online",
+        },
+        ["webKind", "seo"],
+      ),
+    );
+    expect(hasAny(idsOf(result), ["electron", "tauri"])).toBe(true);
+    expect(idsOf(result)).not.toContain("swiftui");
+  });
+
+  test("document + mobile + realtime still avoids Kubernetes for a solo builder", () => {
+    const result = recommend(
+      without(
+        {
+          ...soloDevSaas,
+          team: "solo-learning",
+          product: "mobile",
+          platforms: "ios+android",
+          nativeDepth: "standard",
+          offline: "online",
+          dataShape: "document",
+          realtime: "live",
+          lockIn: "ok",
+        },
+        ["webKind", "seo"],
+      ),
+    );
+    expect(hasAny(idsOf(result), ["firebase", "flutter", "expo"])).toBe(true);
+    expect(idsOf(result)).not.toContain("kubernetes");
+  });
+
+  test("full-text search adds a search layer", () => {
+    const result = recommend({
+      ...soloDevSaas,
+      search: "fulltext",
+    });
+    expect(
+      hasAny(idsOf(result), [
+        "meilisearch",
+        "typesense",
+        "algolia",
+        "postgres-fts",
+        "opensearch",
+      ]),
+    ).toBe(true);
   });
 });
 
 describe("shareable answers encoding", () => {
-  test("round-trips a complete answer set", () => {
-    const encoded = encodeAnswers(soloWebFree);
-    expect(encoded).toContain("product:web");
-    expect(decodeAnswers(encoded)).toEqual(soloWebFree);
+  test("round-trips a complete answer set including multi-select", () => {
+    const encoded = encodeAnswers(webMobileRelational);
+    expect(encoded).toContain("platforms:ios+android+browser");
+    expect(decodeAnswers(encoded)).toMatchObject(webMobileRelational);
   });
 
-  test("fills the skipped realtime answer when encoding a realtime product", () => {
-    const encoded = encodeAnswers(realtimeCollaboration);
-    expect(encoded).toContain("realtime:yes");
-    const decoded = decodeAnswers(encoded);
-    expect(decoded.realtime).toBe("yes");
-    expect(recommend(decoded).winner.stack.id).toBe("phoenix-liveview-fly");
+  test("round-trips founder answers without treating them as legacy v1 tokens", () => {
+    const encoded = encodeAnswers(founderWebsite);
+    expect(decodeAnswers(encoded).team).toBe("solo-learning");
+    expect(decodeAnswers(encoded).realtime).toBe("none");
+    expect(recommendFromEncoded(encoded)?.bestOverall.componentIds).toEqual(
+      recommend(founderWebsite).bestOverall.componentIds,
+    );
+  });
+
+  test("legacy 7-question URLs do not throw and resume as a partial set", () => {
+    const legacy =
+      "product:web,scale:startup,team:solo,budget:free,realtime:no,data:relational,deploy:serverless";
+    const decoded = decodeAnswers(legacy);
+    expect(decoded.product).toBe("webapp");
+    expect(decoded.scaleYear1).toBe("1k-10k");
+    expect(decoded.budget).toBe("zero");
+    expect(decoded.deployPreference).toBe("serverless");
+    const walk = walkQuestionTree(decoded);
+    expect(walk.complete).toBe(false);
+    expect(recommendFromEncoded(legacy)).toBeNull();
   });
 
   test("rejects malformed tokens", () => {

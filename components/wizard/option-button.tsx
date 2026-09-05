@@ -7,6 +7,7 @@ export function OptionButton({
   description,
   index,
   selected = false,
+  multi = false,
   onSelect,
 }: {
   name: string;
@@ -15,6 +16,7 @@ export function OptionButton({
   description?: string;
   index: number;
   selected?: boolean;
+  multi?: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -28,12 +30,11 @@ export function OptionButton({
       )}
     >
       <input
-        type="radio"
+        type={multi ? "checkbox" : "radio"}
         name={name}
         value={value}
         checked={selected}
         onChange={onSelect}
-        onClick={onSelect}
         className="sr-only"
       />
       <span
@@ -48,6 +49,17 @@ export function OptionButton({
           <span className="text-sm text-muted-foreground">{description}</span>
         ) : null}
       </span>
+      {multi ? (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "size-4 shrink-0 rounded-sm border",
+            selected
+              ? "border-primary bg-primary"
+              : "border-border bg-transparent",
+          )}
+        />
+      ) : null}
     </label>
   );
 }

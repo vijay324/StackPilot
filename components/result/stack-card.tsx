@@ -1,11 +1,16 @@
-import { Check, Minus } from "lucide-react";
-import type { ScoredStack } from "@/lib/types";
+import { positiveReasons } from "@/lib/engine/score";
+import type { AssembledStack, ChosenLayer, ScoredComponent } from "@/lib/types";
+import { LAYER_LABELS } from "@/lib/types";
 
-export function ScalingTimeline({ stack }: { stack: ScoredStack["stack"] }) {
+export function ScalingTimeline({
+  story,
+}: {
+  story: AssembledStack["scaling"];
+}) {
   const stages = [
-    { id: "to10k", label: "0→10K", body: stack.scalingStory.to10k },
-    { id: "to1m", label: "10K→1M", body: stack.scalingStory.to1m },
-    { id: "to1b", label: "1M→1B", body: stack.scalingStory.to1b },
+    { id: "to10k", label: "0→10K", body: story.to10k },
+    { id: "to1m", label: "10K→1M", body: story.to1m },
+    { id: "to1b", label: "1M→1B", body: story.to1b },
   ] as const;
 
   return (
@@ -35,73 +40,61 @@ export function ScalingTimeline({ stack }: { stack: ScoredStack["stack"] }) {
   );
 }
 
-export function ComparisonList({ stack }: { stack: ScoredStack["stack"] }) {
-  return (
-    <section
-      aria-labelledby="tradeoffs-heading"
-      className="mt-14 grid gap-10 sm:grid-cols-2"
-    >
-      <div>
-        <h2
-          id="tradeoffs-heading"
-          className="text-sm font-medium text-muted-foreground"
-        >
-          Pros
-        </h2>
-        <ul className="mt-4 space-y-3">
-          {stack.pros.map((item) => (
-            <li key={item} className="flex gap-3 text-sm leading-relaxed">
-              <Check
-                className="mt-0.5 size-4 shrink-0 text-success"
-                aria-hidden="true"
-              />
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div>
-        <h2 className="text-sm font-medium text-muted-foreground">Cons</h2>
-        <ul className="mt-4 space-y-3">
-          {stack.cons.map((item) => (
-            <li key={item} className="flex gap-3 text-sm leading-relaxed">
-              <Minus
-                className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
-}
+export function LayerRow({
+  item,
+  technical,
+}: {
+  item: ChosenLayer;
+  technical: boolean;
+}) {
+  const chosen = item.chosen.component;
+  const reasons = positiveReasons(item.chosen, 3);
 
-export function WhyList({ scored }: { scored: ScoredStack }) {
   return (
-    <section aria-labelledby="why-heading" className="mt-14">
-      <h2
-        id="why-heading"
-        className="text-sm font-medium text-muted-foreground"
-      >
-        Why this fits your answers
-      </h2>
-      <ul className="mt-4 space-y-3">
-        {scored.reasons.map((reason) => (
-          <li
-            key={`${reason.dimension}-${reason.optionId}`}
-            className="text-sm leading-relaxed"
-          >
-            <span className="font-mono text-xs text-primary">
-              {reason.optionLabel}
-            </span>
-            <span className="mt-1 block text-foreground/90">
-              {reason.detail}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <article className="border-t border-border py-6 first:border-t-0 first:pt-0">
+      <p className="font-mono text-xs text-muted-foreground">
+        {LAYER_LABELS[item.layer]}
+      </p>
+      <h3 className="mt-2 font-mono text-base text-foreground">
+        {chosen.name}
+      </h3>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+        {technical ? chosen.summary : chosen.plainSummary}
+      </p>
+      {reasons.length > 0 ? (
+        <ul className="mt-4 space-y-2">
+          {reasons.map((reason) => (
+            <li key={reason.reason} className="text-sm leading-relaxed">
+              <span className="font-mono text-xs text-primary">
+                Why it fits
+              </span>
+              <span className="mt-1 block text-foreground/90">
+                {reason.reason}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {item.alternatives.length > 0 ? (
+        <div className="mt-4">
+          <p className="text-xs font-medium text-muted-foreground">
+            Layer alternatives
+          </p>
+          <ul className="mt-2 space-y-2">
+            {item.alternatives.map((alt: ScoredComponent) => (
+              <li key={alt.component.id} className="text-sm">
+                <span className="font-mono text-xs">{alt.component.name}</span>
+                <span className="mt-1 block text-muted-foreground">
+                  {positiveReasons(alt, 1)[0]?.reason ??
+                    (technical
+                      ? alt.component.summary
+                      : alt.component.plainSummary)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </article>
   );
 }

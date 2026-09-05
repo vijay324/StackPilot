@@ -8,13 +8,17 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { OptionButton } from "@/components/wizard/option-button";
 import { ProgressBar } from "@/components/wizard/progress-bar";
+import { decodeAnswers, resultHref, wizardHref } from "@/lib/engine";
+import { joinMulti, splitMulti } from "@/lib/engine/profile";
 import {
   getWizardProgress,
+  pruneHiddenAnswers,
   QUESTIONS_BY_ID,
+  questionCopy,
   walkQuestionTree,
 } from "@/lib/questions";
-import { decodeAnswers, resultHref, wizardHref } from "@/lib/scoring";
 import type { Answers } from "@/lib/types";
+import { SECTION_LABELS } from "@/lib/types";
 
 function answersFromParam(raw: string | null): Answers {
   if (!raw) {
@@ -34,18 +38,30 @@ export function WizardFlow() {
     answersFromParam(searchParams.get("a")),
   );
   const [reviewId, setReviewId] = useState<string | null>(null);
+  const [draftMulti, setDraftMulti] = useState<string[] | null>(null);
 
   const walk = useMemo(() => walkQuestionTree(answers), [answers]);
   const progress = useMemo(() => getWizardProgress(answers), [answers]);
   const question = reviewId
     ? (QUESTIONS_BY_ID[reviewId] ?? walk.pending)
     : walk.pending;
+  const copy = question
+    ? questionCopy(question, answers.role)
+    : { prompt: "", helper: undefined };
 
   useEffect(() => {
     if (walk.complete && !reviewId) {
       router.replace(resultHref(walk.resolved));
     }
   }, [reviewId, router, walk.complete, walk.resolved]);
+
+  useEffect(() => {
+    if (question?.kind === "multi") {
+      setDraftMulti(splitMulti(answers[question.id] ?? ""));
+    } else {
+      setDraftMulti(null);
+    }
+  }, [answers, question]);
 
   const goBack = useCallback(() => {
     const currentId = reviewId ?? walk.pending?.id;
@@ -61,10 +77,44 @@ export function WizardFlow() {
     }
   }, [reviewId, router, walk.pending?.id, walk.visible]);
 
-  const selectOption = useCallback((questionId: string, optionId: string) => {
+  const commitAnswer = useCallback((questionId: string, optionId: string) => {
     setReviewId(null);
-    setAnswers((current) => ({ ...current, [questionId]: optionId }));
+    setAnswers((current) =>
+      pruneHiddenAnswers({ ...current, [questionId]: optionId }),
+    );
   }, []);
+
+  const toggleMulti = useCallback(
+    (optionId: string, exclusive: boolean | undefined) => {
+      setDraftMulti((current) => {
+        const selected = current ?? [];
+        if (exclusive) {
+          return selected.includes(optionId) ? [] : [optionId];
+        }
+        const withoutExclusive = selected.filter((id) => {
+          const option = question?.options.find((item) => item.id === id);
+          return !option?.exclusive;
+        });
+        if (withoutExclusive.includes(optionId)) {
+          return withoutExclusive.filter((id) => id !== optionId);
+        }
+        return [...withoutExclusive, optionId];
+      });
+    },
+    [question],
+  );
+
+  const continueMulti = useCallback(() => {
+    if (!question) {
+      return;
+    }
+    const min = question.minSelections ?? 1;
+    const selected = draftMulti ?? [];
+    if (selected.length < min) {
+      return;
+    }
+    commitAnswer(question.id, joinMulti(selected));
+  }, [commitAnswer, draftMulti, question]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -76,18 +126,28 @@ export function WizardFlow() {
       if (!question) {
         return;
       }
+      if (question.kind === "multi" && event.key === "Enter") {
+        event.preventDefault();
+        continueMulti();
+        return;
+      }
       const digit = Number(event.key);
       if (digit >= 1 && digit <= question.options.length) {
         event.preventDefault();
         const option = question.options[digit - 1];
-        if (option) {
-          selectOption(question.id, option.id);
+        if (!option) {
+          return;
+        }
+        if (question.kind === "multi") {
+          toggleMulti(option.id, option.exclusive);
+        } else {
+          commitAnswer(question.id, option.id);
         }
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goBack, question, selectOption]);
+  }, [commitAnswer, continueMulti, goBack, question, toggleMulti]);
 
   if ((walk.complete && !reviewId) || !question) {
     return (
@@ -96,6 +156,19 @@ export function WizardFlow() {
       </div>
     );
   }
+
+  const selectedIds =
+    question.kind === "multi"
+      ? (draftMulti ?? splitMulti(answers[question.id] ?? ""))
+      : answers[question.id]
+        ? [answers[question.id]]
+        : [];
+  const min = question.minSelections ?? 1;
+  const canContinue =
+    question.kind !== "multi" || selectedIds.filter(Boolean).length >= min;
+  const sectionName = question.section
+    ? SECTION_LABELS[question.section]
+    : "Questions";
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -106,19 +179,8 @@ export function WizardFlow() {
       <div className="px-5 sm:px-8">
         <div className="mx-auto max-w-xl">
           <ProgressBar
-            value={
-              question
-                ? Math.max(
-                    0,
-                    walk.visible.findIndex((item) => item.id === question.id),
-                  ) / Math.max(progress.total, 1)
-                : progress.ratio
-            }
-            label={`Question ${
-              question
-                ? walk.visible.findIndex((item) => item.id === question.id) + 1
-                : progress.step
-            } of ${progress.total}`}
+            value={progress.ratio}
+            label={`Section ${progress.sectionIndex} of ${progress.sectionTotal} · ${sectionName} · Question ${progress.sectionStep} of ${progress.sectionCount} (${progress.step} of ${progress.total})`}
           />
         </div>
       </div>
@@ -138,15 +200,20 @@ export function WizardFlow() {
           className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300"
         >
           <h1 className="text-3xl font-medium tracking-tight text-balance sm:text-4xl">
-            {question.prompt}
+            {copy.prompt}
           </h1>
-          {question.helper ? (
+          {copy.helper ? (
             <p className="mt-3 max-w-prose text-muted-foreground">
-              {question.helper}
+              {copy.helper}
+            </p>
+          ) : null}
+          {question.kind === "multi" ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Select all that apply.
             </p>
           ) : null}
           <fieldset className="mt-8 m-0 border-0 p-0">
-            <legend className="sr-only">{question.prompt}</legend>
+            <legend className="sr-only">{copy.prompt}</legend>
             <div className="flex flex-col gap-2">
               {question.options.map((option, index) => (
                 <OptionButton
@@ -156,14 +223,33 @@ export function WizardFlow() {
                   index={index + 1}
                   label={option.label}
                   description={option.description}
-                  selected={answers[question.id] === option.id}
-                  onSelect={() => selectOption(question.id, option.id)}
+                  multi={question.kind === "multi"}
+                  selected={selectedIds.includes(option.id)}
+                  onSelect={() => {
+                    if (question.kind === "multi") {
+                      toggleMulti(option.id, option.exclusive);
+                    } else {
+                      commitAnswer(question.id, option.id);
+                    }
+                  }}
                 />
               ))}
             </div>
           </fieldset>
+          {question.kind === "multi" ? (
+            <Button
+              type="button"
+              className="mt-8"
+              disabled={!canContinue}
+              onClick={continueMulti}
+            >
+              Continue
+            </Button>
+          ) : null}
           <p className="mt-8 font-mono text-xs text-muted-foreground">
-            Press 1–{question.options.length} to choose · Esc to go back
+            Press 1–{question.options.length} to choose
+            {question.kind === "multi" ? " · Enter to continue" : ""} · Esc to
+            go back
           </p>
         </div>
         <p className="sr-only">

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ResultView } from "@/components/result/result-view";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
-import { recommendFromEncoded } from "@/lib/scoring";
+import { recommendFromEncoded } from "@/lib/engine";
 
 type ResultProps = {
   searchParams: Promise<{ a?: string | string[] }>;
@@ -21,8 +21,8 @@ export async function generateMetadata({
     };
   }
   return {
-    title: result.winner.stack.name,
-    description: result.winner.stack.summary,
+    title: result.bestOverall.title,
+    description: result.bestOverall.plainSummary,
     robots: { index: false, follow: false },
   };
 }

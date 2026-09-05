@@ -2,12 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { OptionButton } from "@/components/wizard/option-button";
-import { QUESTIONS } from "@/lib/questions";
-import { wizardHref } from "@/lib/scoring";
+import { wizardHref } from "@/lib/engine";
+import { getWizardProgress, QUESTIONS } from "@/lib/questions";
 
 export function HeroQuestion() {
   const router = useRouter();
   const question = QUESTIONS[0];
+  const progress = getWizardProgress({});
 
   if (!question) {
     return null;
@@ -15,7 +16,9 @@ export function HeroQuestion() {
 
   return (
     <div>
-      <p className="font-mono text-xs text-muted-foreground">Question 1 of 7</p>
+      <p className="font-mono text-xs text-muted-foreground">
+        Question 1 of {progress.total}
+      </p>
       <h2 className="mt-3 text-2xl font-medium tracking-tight sm:text-3xl">
         {question.prompt}
       </h2>

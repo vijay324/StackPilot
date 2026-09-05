@@ -5,7 +5,7 @@ import { WizardFlow } from "@/components/wizard/wizard-flow";
 export const metadata: Metadata = {
   title: "Questionnaire",
   description:
-    "Answer a short sequence of questions. StackPilot scores a catalog of real-world stacks.",
+    "Answer the questionnaire. StackPilot scores a catalog of real-world components.",
   robots: { index: false, follow: false },
 };
 

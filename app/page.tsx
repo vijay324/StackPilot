@@ -1,7 +1,7 @@
 /*
 THESIS: The questionnaire is the product. Refuse a SaaS hero with a fake dashboard.
 OWN-WORLD: Near-black field, 1px #26262A rules, Geist, electric blue only on live controls.
-STORY: Seven answers in, a deterministic engine names a stack that has a 0→1B story.
+STORY: A guided questionnaire. A deterministic engine names a stack that has a 0→1B story.
 FIRST VIEWPORT: Wordmark top-left; pledge left; Question 1 as the right-hand control. Choosing an option is Start.
 FORM: Brief-pinned Linear / Vercel / Polar canon. Seed skipped — palette, type, and references were locked in the spec.
 */
@@ -10,7 +10,7 @@ import Link from "next/link";
 import { HeroQuestion } from "@/components/landing/hero-question";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
-import { STACKS } from "@/lib/stacks";
+import { COMPONENTS } from "@/lib/catalog";
 
 export const metadata: Metadata = {
   title: "StackPilot — Pick your stack. Scale with confidence.",
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "StackPilot — Pick your stack. Scale with confidence.",
     description:
-      "A rules engine, not a chatbot. 19 real-world stacks. Same answers, same recommendation.",
+      "A rules engine, not a chatbot. Layered components. Same answers, same recommendation.",
     type: "website",
   },
   twitter: {
@@ -71,7 +71,7 @@ export default function HomePage() {
           <div className="mx-auto grid max-w-5xl gap-16 lg:grid-cols-2 lg:items-start lg:gap-20">
             <div>
               <p className="font-mono text-xs text-primary">
-                {STACKS.length} stacks · rules engine · no account
+                {COMPONENTS.length} components · rules engine · no account
               </p>
               <h1 className="mt-5 text-[clamp(2.5rem,8vw,4.5rem)] font-medium tracking-tight text-balance leading-[1.05]">
                 Pick your stack.
@@ -80,9 +80,10 @@ export default function HomePage() {
                 </span>
               </h1>
               <p className="mt-6 max-w-md text-base leading-relaxed text-muted-foreground">
-                Seven questions about what you are building. A scored catalog of
-                real-world stacks. A recommendation you can share — and a path
-                from the first user to a billion.
+                Answer a guided questionnaire about what you are building. A
+                scored catalog of real-world components. A layered
+                recommendation you can share — and a path from the first user to
+                a billion.
               </p>
               <p className="mt-8 text-sm text-muted-foreground">
                 Or skip the preview and{" "}
@@ -119,9 +120,8 @@ export default function HomePage() {
                   Answer the brief
                 </p>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Product type, year-one scale, team, budget, realtime, data
-                  shape, deploy preference. One screen each. Back is always
-                  there.
+                  Product, scale, team, budget, data, and integrations. Extra
+                  questions appear only when they matter. Back is always there.
                 </p>
               </li>
               <li className="md:border-l md:border-border md:px-6">
@@ -130,8 +130,9 @@ export default function HomePage() {
                   Score the catalog
                 </p>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Each answer adds weight toward matching tags. Highest score
-                  wins. The function is pure TypeScript, covered by tests.
+                  Each answer fires written rules on frontend, backend,
+                  database, cache, integrations, and hosting. Highest score per
+                  layer wins. The function is pure TypeScript, covered by tests.
                 </p>
               </li>
               <li className="md:border-l md:border-border md:pl-6">
@@ -140,8 +141,9 @@ export default function HomePage() {
                   Leave with a path
                 </p>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Top stack, two runners-up, and what actually changes at 10K,
-                  1M, and 1B users. The URL is the share button.
+                  Best overall stack, per-layer reasons, two other ways to slice
+                  it, and what actually changes at 10K, 1M, and 1B users. The
+                  URL is the share button.
                 </p>
               </li>
             </ol>
@@ -167,11 +169,13 @@ export default function HomePage() {
               </p>
             </div>
             <pre className="mt-10 overflow-x-auto rounded-md border border-border bg-card p-5 font-mono text-xs leading-relaxed text-muted-foreground lg:mt-0">
-              {`score += weight(dimension)
-       * affinity(stack, answer) / 3
+              {`for each layer:
+  score(component) += fired rule scores
+  drop excludes
+  pick highest + synergy
 
-// perfect match = 100
-// product mismatch is dropped from the top 3`}
+// Best Overall = assembled layers
+// explanations come only from written rules`}
             </pre>
           </div>
         </section>
